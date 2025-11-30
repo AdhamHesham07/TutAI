@@ -1,0 +1,13 @@
+torch
+transformers==4.57.1
+sentence-transformers
+faiss-cpu
+langchain
+langchain-google-genai
+langchain-community
+langchain_core
+python-docx
+python-dotenv
+google-search-results
+pymupdf
+gradio
