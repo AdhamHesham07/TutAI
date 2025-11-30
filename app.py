@@ -26,25 +26,18 @@ else:
 model = AutoModelForCausalLM.from_pretrained(MODEL_HF_ID, **model_kwargs)
 model.to(TORCH_DEVICE)
 
-# -----------------------------
-# Initialize RAG
-# -----------------------------
-rag_system = RagSystem(tokenizer)
 
 # -----------------------------
-# Create Agent
+# Initialize RAG + Agent
 # -----------------------------
+rag_system = RagSystem(tokenizer)
 agent = create_agent(rag_system, tokenizer, model)
 
 
 # -----------------------------
 # UI
 # -----------------------------
-with gr.Blocks(
-    analytics_enabled=False,
-    fill_height=True,
-    allow_flagging="never"
-) as demo:
+with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
 
     chatbot = gr.Chatbot()
     chat_history_state = gr.State([])
@@ -59,28 +52,31 @@ with gr.Blocks(
         clear_chat_button = gr.Button("Clear Chat")
         clear_file_button = gr.Button("Clear File")
 
-    # ---- Callback ----
-    def handle_send(user_message, uploaded_file, chat_history, file_state):
+    # -----------------------------
+    # Callbacks
+    # -----------------------------
+    def handle_send(message, uploaded_file, chat_history, file_state):
+        """
+        Fixes HF Spaces format issues and handles file state + RAG agent.
+        """
 
-        # Fix HF Spaces message structure
-        if isinstance(user_message, list):
-            if len(user_message) > 0 and isinstance(user_message[0], dict):
-                user_message = user_message[0].get("content", "")
-            else:
-                user_message = ""
+        # HF Spaces sometimes passes message as None
+        if message is None:
+            return chat_history, file_state, ""
 
+        # Handle file
         if uploaded_file is not None:
             file_state = uploaded_file.name
 
-        response = agent(user_message, file_state)
-        answer = response.get("answer", "Sorry, no answer.")
+        # Run agent
+        response = agent(message, file_state)
+        answer = response.get("answer", "Sorry, no answer found.")
 
-        chat_history = chat_history + [[user_message, answer]]
+        chat_history = chat_history + [[message, answer]]
 
-        if file_state is not None:
-            file_state = None
+        # Clear file state after processing 1 message
+        return chat_history, None, ""
 
-        return chat_history, file_state, ""
 
     send_button.click(
         handle_send,
@@ -88,17 +84,20 @@ with gr.Blocks(
         outputs=[chatbot, file_path_state, user_input]
     )
 
+    # Clear chat
     clear_chat_button.click(
-        lambda _: [],
-        inputs=[chat_history_state],
-        outputs=[chatbot]
+        lambda: [],
+        inputs=None,
+        outputs=chatbot
     )
 
+    # Clear file input
     clear_file_button.click(
-        lambda _: None,
-        inputs=[file_path_state],
-        outputs=[file_input]
+        lambda: None,
+        inputs=None,
+        outputs=file_input
     )
+
 
 # -----------------------------
 # Launch
