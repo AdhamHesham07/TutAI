@@ -1,7 +1,7 @@
 torch
 transformers==4.57.1
 sentence-transformers
-faiss-cpu==1.7.4
+faiss-cpu
 langchain
 langchain-google-genai
 langchain-community
