@@ -35,12 +35,11 @@ agent = create_agent(rag_system, tokenizer, model)
 
 
 # -----------------------------
-# Updated HF-Compatible UI
+# UI
 # -----------------------------
 with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
 
-    # IMPORTANT: type="messages" fixes HF Spaces error
-    chatbot = gr.Chatbot(type="messages")
+    chatbot = gr.Chatbot()   # NO type="messages" in old Gradio
     chat_history_state = gr.State([])
     file_path_state = gr.State(None)
 
@@ -54,12 +53,12 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         clear_file_button = gr.Button("Clear File")
 
     # -----------------------------
-    # FIXED Callback
+    # Compatible Callback
     # -----------------------------
     def handle_send(message, uploaded_file, chat_history, file_state):
         """
-        HF Spaces requires chat messages to be dicts:
-        {"role": "...", "content": "..."}.
+        HF Spaces (old Gradio) requires chat format:
+        [(user_msg, bot_msg), ...]
         """
 
         if message is None:
@@ -69,15 +68,12 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         if uploaded_file is not None:
             file_state = uploaded_file.name
 
-        # Run orchestrator agent
+        # Run agent response
         response = agent(message, file_state)
         answer = response.get("answer", "Sorry, no answer found.")
 
-        # Append messages in the correct HF Spaces format
-        chat_history = chat_history + [
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": answer}
-        ]
+        # Append in tuple form
+        chat_history = chat_history + [(message, answer)]
 
         return chat_history, None, ""
 
@@ -88,19 +84,8 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         outputs=[chatbot, file_path_state, user_input]
     )
 
-    # Clear chat history
-    clear_chat_button.click(
-        lambda: [],
-        inputs=None,
-        outputs=chatbot
-    )
-
-    # Clear file input
-    clear_file_button.click(
-        lambda: None,
-        inputs=None,
-        outputs=file_input
-    )
+    clear_chat_button.click(lambda: [], None, chatbot)
+    clear_file_button.click(lambda: None, None, file_input)
 
 
 # -----------------------------
