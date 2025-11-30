@@ -1,6 +1,3 @@
-import gradio
-print("Gradio version:", gradio.__version__)
-
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -10,7 +7,7 @@ from rag.rag_system import RagSystem
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 from agent.orchestrator import create_agent
-from config.settings import TORCH_DEVICE, LLM_MODEL_NAME, MODEL_PATH
+from config.settings import TORCH_DEVICE, MODEL_PATH
 
 
 # -----------------------------
@@ -42,7 +39,7 @@ agent = create_agent(rag_system, tokenizer, model)
 # -----------------------------
 with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
 
-    chatbot = gr.Chatbot()   # NO type="messages" in old Gradio
+    chatbot = gr.Chatbot()   # No type arg in Gradio 6
     chat_history_state = gr.State([])
     file_path_state = gr.State(None)
 
@@ -56,12 +53,12 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         clear_file_button = gr.Button("Clear File")
 
     # -----------------------------
-    # Compatible Callback
+    # Chat Callback (Gradio 6 format)
     # -----------------------------
     def handle_send(message, uploaded_file, chat_history, file_state):
         """
-        HF Spaces (old Gradio) requires chat format:
-        [(user_msg, bot_msg), ...]
+        Gradio 6 requires list of dict messages:
+        {"role": "user"/"assistant", "content": "..."}
         """
 
         if message is None:
@@ -71,15 +68,17 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         if uploaded_file is not None:
             file_state = uploaded_file.name
 
-        # Run agent response
+        # Run agent
         response = agent(message, file_state)
         answer = response.get("answer", "Sorry, no answer found.")
 
-        # Append in tuple form
-        chat_history = chat_history + [(message, answer)]
+        # Append in messages format
+        chat_history = chat_history + [
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": answer}
+        ]
 
         return chat_history, None, ""
-
 
     send_button.click(
         handle_send,
@@ -87,8 +86,19 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         outputs=[chatbot, file_path_state, user_input]
     )
 
-    clear_chat_button.click(lambda: [], None, chatbot)
-    clear_file_button.click(lambda: None, None, file_input)
+    # Clear chat
+    clear_chat_button.click(
+        lambda: [],
+        None,
+        chatbot
+    )
+
+    # Clear file input
+    clear_file_button.click(
+        lambda: None,
+        None,
+        file_input
+    )
 
 
 # -----------------------------
