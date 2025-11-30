@@ -1,3 +1,6 @@
+import gradio
+print("Gradio version:", gradio.__version__)
+
 import os
 from dotenv import load_dotenv
 load_dotenv()
