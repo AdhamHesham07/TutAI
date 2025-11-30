@@ -63,21 +63,29 @@ with gr.Blocks() as demo:
     # Callbacks
     # -----------------------------
     def handle_send(user_message, uploaded_file, chat_history, file_state):
+
+        if isinstance(user_message, list):
+            # Spaces gives [{"role": "user", "content": "..."}]
+            if len(user_message) > 0 and isinstance(user_message[0], dict):
+                user_message = user_message[0].get("content", "")
+            else:
+                user_message = ""
+    
         # Update file path if new file uploaded
         if uploaded_file is not None:
             file_state = uploaded_file.name
-        
+    
         # Call agent
         response = agent(user_message, file_state)
         answer = response.get("answer", "Sorry, no answer.")
-        
+    
         # Update chat history
         chat_history = chat_history + [[user_message, answer]]
-        
+    
         # Clear file state after first use
         if file_state is not None:
             file_state = None
-        
+    
         return chat_history, file_state, ""
     
     send_button.click(
