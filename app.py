@@ -35,11 +35,12 @@ agent = create_agent(rag_system, tokenizer, model)
 
 
 # -----------------------------
-# UI
+# Updated HF-Compatible UI
 # -----------------------------
 with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
 
-    chatbot = gr.Chatbot()
+    # IMPORTANT: type="messages" fixes HF Spaces error
+    chatbot = gr.Chatbot(type="messages")
     chat_history_state = gr.State([])
     file_path_state = gr.State(None)
 
@@ -53,28 +54,31 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         clear_file_button = gr.Button("Clear File")
 
     # -----------------------------
-    # Callbacks
+    # FIXED Callback
     # -----------------------------
     def handle_send(message, uploaded_file, chat_history, file_state):
         """
-        Fixes HF Spaces format issues and handles file state + RAG agent.
+        HF Spaces requires chat messages to be dicts:
+        {"role": "...", "content": "..."}.
         """
 
-        # HF Spaces sometimes passes message as None
         if message is None:
             return chat_history, file_state, ""
 
-        # Handle file
+        # Handle file upload
         if uploaded_file is not None:
             file_state = uploaded_file.name
 
-        # Run agent
+        # Run orchestrator agent
         response = agent(message, file_state)
         answer = response.get("answer", "Sorry, no answer found.")
 
-        chat_history = chat_history + [[message, answer]]
+        # Append messages in the correct HF Spaces format
+        chat_history = chat_history + [
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": answer}
+        ]
 
-        # Clear file state after processing 1 message
         return chat_history, None, ""
 
 
@@ -84,7 +88,7 @@ with gr.Blocks(analytics_enabled=False, title="Chatbot") as demo:
         outputs=[chatbot, file_path_state, user_input]
     )
 
-    # Clear chat
+    # Clear chat history
     clear_chat_button.click(
         lambda: [],
         inputs=None,
