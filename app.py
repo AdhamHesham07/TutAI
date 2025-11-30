@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-load_dotenv()  # Load local .env AND HF secrets
+load_dotenv()
 
 import gradio as gr
 from rag.rag_system import RagSystem
@@ -11,9 +11,9 @@ from config.settings import TORCH_DEVICE, LLM_MODEL_NAME, MODEL_PATH
 
 
 # -----------------------------
-# Load Tokenizer + Model (HF Hub)
+# Load Tokenizer + Model
 # -----------------------------
-MODEL_HF_ID = MODEL_PATH  # replace with your repo ID
+MODEL_HF_ID = MODEL_PATH
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_HF_ID, trust_remote_code=True)
 
@@ -27,7 +27,7 @@ model = AutoModelForCausalLM.from_pretrained(MODEL_HF_ID, **model_kwargs)
 model.to(TORCH_DEVICE)
 
 # -----------------------------
-# Initialize RAG System
+# Initialize RAG
 # -----------------------------
 rag_system = RagSystem(tokenizer)
 
@@ -36,85 +36,75 @@ rag_system = RagSystem(tokenizer)
 # -----------------------------
 agent = create_agent(rag_system, tokenizer, model)
 
+
 # -----------------------------
-#  Gradio States
+# UI
 # -----------------------------
-with gr.Blocks() as demo:
-    
-    # Chat display
+with gr.Blocks(
+    analytics_enabled=False,
+    fill_height=True,
+    allow_flagging="never"
+) as demo:
+
     chatbot = gr.Chatbot()
-    
-    # Hidden states
     chat_history_state = gr.State([])
     file_path_state = gr.State(None)
-    
-    # Input row
+
     with gr.Row():
         file_input = gr.File(label="Upload File", file_types=[".pdf", ".docx", ".txt"])
-        user_input = gr.Textbox(label="Your message", placeholder="Type your question here...", lines=1)
+        user_input = gr.Textbox(label="Your message", lines=1)
         send_button = gr.Button("Send")
-    
-    # Optional control buttons
+
     with gr.Row():
         clear_chat_button = gr.Button("Clear Chat")
         clear_file_button = gr.Button("Clear File")
-    
-    # -----------------------------
-    # Callbacks
-    # -----------------------------
+
+    # ---- Callback ----
     def handle_send(user_message, uploaded_file, chat_history, file_state):
 
+        # Fix HF Spaces message structure
         if isinstance(user_message, list):
-            # Spaces gives [{"role": "user", "content": "..."}]
             if len(user_message) > 0 and isinstance(user_message[0], dict):
                 user_message = user_message[0].get("content", "")
             else:
                 user_message = ""
-    
-        # Update file path if new file uploaded
+
         if uploaded_file is not None:
             file_state = uploaded_file.name
-    
-        # Call agent
+
         response = agent(user_message, file_state)
         answer = response.get("answer", "Sorry, no answer.")
-    
-        # Update chat history
+
         chat_history = chat_history + [[user_message, answer]]
-    
-        # Clear file state after first use
+
         if file_state is not None:
             file_state = None
-    
+
         return chat_history, file_state, ""
-    
+
     send_button.click(
         handle_send,
         inputs=[user_input, file_input, chat_history_state, file_path_state],
         outputs=[chatbot, file_path_state, user_input]
     )
-    
-    # Clear chat
-    def clear_chat(chat_history):
-        return [], chat_history  # reset display and state
-    
+
     clear_chat_button.click(
-        clear_chat,
+        lambda _: [],
         inputs=[chat_history_state],
-        outputs=[chatbot, chat_history_state]
+        outputs=[chatbot]
     )
-    
-    # Clear file
-    def clear_file(file_state):
-        return None, file_state
-    
+
     clear_file_button.click(
-        clear_file,
+        lambda _: None,
         inputs=[file_path_state],
-        outputs=[file_path_state, file_input]
+        outputs=[file_input]
     )
 
 # -----------------------------
 # Launch
 # -----------------------------
-demo.launch(share=True)
+demo.launch(
+    server_name="0.0.0.0",
+    server_port=7860,
+    share=False
+)
