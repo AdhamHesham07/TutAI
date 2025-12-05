@@ -1,8 +1,26 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
-from config.settings import MODEL_PATH, TORCH_DEVICE
+import os
 
+from config.settings import MODEL_PATH, TORCH_DEVICE, LLM_MODEL_NAME
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_classic import LLMChain, PromptTemplate
+
+api_llm = ChatGoogleGenerativeAI(
+    model=LLM_MODEL_NAME,
+    google_api_key=os.environ.get("GEMINI_API_KEY"),
+    temperature=0.7
+)
+SYNTH_PROMPT = PromptTemplate(
+    template="""You are an educational assistant.
+Use the prompt below to produce a concise, accurate answer.
+Prompt: {prompt}
+Final Answer:""",
+    input_variables=['prompt']
+)
+
+api_llm_chain = LLMChain(llm=api_llm, prompt=SYNTH_PROMPT)
 # ======================================================
 #  Echo Cleaner (internal only)
 # ======================================================
@@ -74,19 +92,20 @@ def generate_with_local_llm(
     Generate text from the local LLM.
     Automatically removes prompt echoes.
     """
-    inputs = tokenizer(prompt, return_tensors="pt")
-    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    # inputs = tokenizer(prompt, return_tensors="pt")
+    # inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
-    out_tokens = model.generate(
-        **inputs,
-        max_new_tokens=max_new_tokens,
-        do_sample=(temperature > 0.0),
-        temperature=temperature
-    )
+    # out_tokens = model.generate(
+    #     **inputs,
+    #     max_new_tokens=max_new_tokens,
+    #     do_sample=(temperature > 0.0),
+    #     temperature=temperature
+    # )
 
-    raw_text = tokenizer.decode(out_tokens[0], skip_special_tokens=True)
+    # raw_text = tokenizer.decode(out_tokens[0], skip_special_tokens=True)
+    cleaned = api_llm_chain.run({'prompt': prompt})
 
     # Clean
-    cleaned = _smart_strip_echo(raw_text)
+    # cleaned = _smart_strip_echo(raw_text)
 
     return cleaned
